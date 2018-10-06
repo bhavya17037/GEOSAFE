@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html>
+	<head>
+	<meta charset="utf-8">
+	<title>GEOSAFE</title>
+	<style>
+		#map {
+			height: 100%;
+		}
+
+		html, body {
+			height: 100%;
+			margin: 0;
+			padding: 0;
+		}
+
+		#floating-panel {
+			position: absolute;
+			top: 10px;
+			left: 25%;
+			z-index: 5;
+			background-color: #fff;
+			padding: 5px;
+			border: 1px solid #999;
+			text-align: center;
+			font-family: 'Roboto','sans-serif';
+			line-height: 30px;
+			padding-left: 10px;
+		}
+
+		#floating-panel {
+			background-color: #fff;
+			border: 1px solid #999;
+			left: 25%;
+			padding: 5px;
+			position: absolute;
+			top: 10px;
+			z-index: 5;
+		}
+	</style>
+	</head>
+
+	<body>
+	<div id="floating-panel">
+		<button onclick="toggleHeatmap()">Toggle Heatmap</button>
+		<button onclick="changeGradient()">Change gradient</button>
+		<button onclick="changeRadius()">Change radius</button>
+		<button onclick="changeOpacity()">Change opacity</button>
+	</div>
+
+	<div id="map"></div>
+
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+	<script src="https://cdn.pubnub.com/sdk/javascript/pubnub.4.19.0.min.js"></script>
+	
+	<script>
+		var total = 100;
+		var inthezone = false;
+		var map, heatmap;
+		var latitude = 0, longitude = 0;
+		var x;
+		var arr;
+		var geofence = {'mx': 0, 'my': 0, 'radius': 0};
+		var radius = 0;
+		arr=[];
+
+		for(var i = 0; i < total; i++)
+			arr.push([getRandomFloat(28.54, 28.55), getRandomFloat(77.26, 77.28)]);
+
+		navigator.geolocation.getCurrentPosition(function(location) {
+			latitude = location.coords.latitude;
+			longitude = location.coords.longitude;
+			var to_send = JSON.stringify(arr);
+
+			$.post("/map",{"latitude": latitude, "longitude": longitude, "points": to_send}, function(data,status) {
+					geofence = data;
+					checkIfInGeofence();
+				}
+			);
+		});
+
+		function dist(x1, y1, x2, y2)
+		{
+			return Math.sqrt(Math.pow(x1 - x2, 2) + Math.pow(y1 - y2, 2));
+		}
+
+		function checkIfInGeofence()
+		{
+			var mx = geofence.mx;
+			var my = geofence.my;
+			var radius = geofence.radius;
+
+			if(!inthezone)
+			{
+				if(dist(mx, my, latitude, longitude) <= radius / 100000 * 1.32)
+				{
+					console.log(mx, my, latitude, longitude, radius, radius / 100000 * 1.32);
+					console.log(dist(mx, my, latitude, longitude));
+					window.alert("You are in a high danger zone. Be cautious!");
+					inthezone = true;
+				}
+			}
+
+			var geofence_circle = new google.maps.Circle({
+				strokeColor: '#0000FF',
+				strokeOpacity: 0.8,
+				strokeWeight: 2,
+				fillColor: '#0000FF',
+				fillOpacity: 0.35,
+				map: map,
+				center:  {lat: mx, lng: my},
+				radius: radius
+			});
+		}
+
+		function initMap()
+		{
+			map = new google.maps.Map(document.getElementById('map'), {
+				zoom: 13,
+				center: {lat: latitude, lng: longitude},
+				mapTypeId: 'satellite'
+			});
+
+			heatmap = new google.maps.visualization.HeatmapLayer({
+				data: getPoints(),
+				map: map
+			});
+
+			mark = new google.maps.Marker({position:{lat: latitude, lng: longitude}, map:map});
+
+			var cityCircle = new google.maps.Circle({
+				strokeColor: '#0000FF',
+				strokeOpacity: 0.8,
+				strokeWeight: 2,
+				fillColor: '#0000FF',
+				fillOpacity: 0.35,
+				map: map,
+				center:  {lat: latitude, lng: longitude},
+				radius: 10
+			});
+		}
+
+		var redraw = function(payload) {
+			  lat = payload.message.lat;
+			  lng = payload.message.lng;
+			  map.setCenter({lat: latitude, lng: longitude, alt:0});
+
+			  if(mark != null){
+			 	 mark.setPosition({lat: latitude, lng: longitude, alt:0});
+			}
+			
+			checkIfInGeofence();
+		};
+
+		function toggleHeatmap() {
+			heatmap.setMap(heatmap.getMap() ? null : map);
+		}
+
+		function changeGradient() {
+			var gradient = [
+				'rgba(0, 255, 255, 0)',
+				'rgba(0, 255, 255, 1)',
+				'rgba(0, 191, 255, 1)',
+				'rgba(0, 127, 255, 1)',
+				'rgba(0, 63, 255, 1)',
+				'rgba(0, 0, 255, 1)',
+				'rgba(0, 0, 223, 1)',
+				'rgba(0, 0, 191, 1)',
+				'rgba(0, 0, 159, 1)',
+				'rgba(0, 0, 127, 1)',
+				'rgba(63, 0, 91, 1)',
+				'rgba(127, 0, 63, 1)',
+				'rgba(191, 0, 31, 1)',
+				'rgba(255, 0, 0, 1)'
+			];
+
+			heatmap.set('gradient', heatmap.get('gradient') ? null : gradient);
+		}
+
+		// PUBNUB
+		var pnChannel = "map-channel";
+		var pubnub = new PubNub({
+			publishKey:   'pub-c-317a2556-7ae9-4dde-9d20-4acec0b24093',
+			subscribeKey: 'sub-c-128693ac-c8ec-11e8-b017-9246cc6b239c'
+		});
+
+		pubnub.subscribe({channels: [pnChannel]});
+		pubnub.addListener({message:redraw});
+
+		function changeRadius()
+		{
+			heatmap.set('radius', heatmap.get('radius') ? null : 20);
+		}
+
+		function changeOpacity()
+		{
+			heatmap.set('opacity', heatmap.get('opacity') ? null : 0.2);
+		}
+
+		function getRandomFloat(min, max)
+		{
+  			return Math.random() * (max - min) + min;
+		}
+
+		setInterval(function() {
+  			pubnub.publish({channel:pnChannel, message:circlePoint(new Date().getTime()/1000)});
+		}, 500);
+
+		function circlePoint(time)
+		{
+			var radius = 0.01;
+			var x = Math.cos(time) * radius;
+			var y = Math.sin(time) * radius;
+			return {lat:latitude + y, lng: longitude + x};
+		};
+
+		function getPoints() {
+			x = new Array(total);
+
+			for(var i = 0; i < total; i++)
+				x[i] = new google.maps.LatLng(arr[i][0],arr[i][1]);
+
+			return x;
+		}
+
+		
+		function getLocation() {
+			if (navigator.geolocation)
+				navigator.geolocation.getCurrentPosition(updatePosition);
+
+			return null;
+		};
+
+		function updatePosition(position)
+		{
+			if (position)
+			{
+				latitude = position.coords.latitude;
+				longitude = position.coords.longitude;
+			}
+		}
+		
+		setInterval(function(){updatePosition(getLocation());}, 10000);
+		
+		function currentLocation()
+		{
+			return {lat:latitude, lng:longitude};
+		};
+
+	</script>
+	<script async defer
+		src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCvY9WU6VqD684U83U7Y8dBwnBpmsYPdzc&libraries=visualization&callback=initMap">
+	</script>
+	</body>
+</html>

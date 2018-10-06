@@ -1,0 +1,20 @@
+{% extends 'layout.html' %}
+{% block content %}
+
+	<div class="app-header">
+		<center><h1 style="font-size: 10rem;">GEOSAFE</h1></center>
+	</div>
+	<div class="select-username">
+		<div class="col-md-4">
+			<form method="POST" action="">
+				{{ form.hidden_tag() }}
+				<div class="form-group">
+					{{ form.username.label("ENTER MOBILE NO:", class="form-control-label") }}
+					{{ form.username(class="form-control form-control-lg", autofocus=true) }}
+				</div>
+				{{ form.submit(class="btn btn-primary btn-lg btn-block") }}
+			</form>
+		</div>
+	</div>	
+
+{% endblock content %}
