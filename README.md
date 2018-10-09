@@ -1,8 +1,8 @@
 Byld Hackathon (October - 2018)
 
-Team name: Illegal Penguins
+Team Name: Illegal Penguins
 
-Team members: 
+Team Members: 
 
 	Bhavya Srivastava (2017037)
 	Raghav Gupta (2017178)
